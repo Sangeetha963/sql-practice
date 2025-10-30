@@ -52,3 +52,22 @@ INSERT INTO orders (customer_id, product_id, quantity, order_date) VALUES
 
 SELECT * FROM orders;
 
+-- Create payments table
+CREATE TABLE payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER,
+    amount REAL,
+    payment_method TEXT,
+    status TEXT,
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+);
+
+-- Insert sample payments
+INSERT INTO payments (order_id, amount, payment_method, status) VALUES
+(1, 55000, 'UPI', 'Success'),
+(2, 2397, 'Credit Card', 'Success'),
+(3, 499, 'UPI', 'Pending'),
+(4, 5000, 'Cash on Delivery', 'Success');
+
+SELECT * FROM payments;
+
