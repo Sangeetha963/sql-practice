@@ -1,0 +1,66 @@
+
+
+
+-- ShopEase SQL Practice
+
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    price REAL,
+    category TEXT
+);
+
+INSERT INTO products (name, price, category) VALUES
+('Laptop', 55000, 'Electronics'),
+('T-shirt', 799, 'Fashion'),
+('Cooker', 2500, 'Home'),
+('Book - Flutter Guide', 499, 'Books');
+
+SELECT * FROM products;
+
+-- 🧱 Create customers table
+CREATE TABLE customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    city TEXT
+);
+
+-- 👩‍💻 Insert some sample customers
+INSERT INTO customers (name, email, city) VALUES
+('Aditi Sharma', 'aditi@example.com', 'Bangalore'),
+('Rohan Das', 'rohan@example.com', 'Mumbai'),
+('Meena Iyer', 'meena@example.com', 'Chennai');
+
+-- 📦 Create orders table
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER,
+    order_date TEXT,
+    total REAL,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+);
+
+-- 🧾 Insert a few orders
+INSERT INTO orders (customer_id, order_date, total) VALUES
+(1, '2025-10-25', 55800),
+(2, '2025-10-26', 3299),
+(3, '2025-10-28', 499);
+
+-- 🧮 Create order_items table to link orders ↔ products
+CREATE TABLE order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER,
+    FOREIGN KEY (order_id) REFERENCES orders(id),
+    FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+-- 🧩 Insert order details
+INSERT INTO order_items (order_id, product_id, quantity) VALUES
+(1, 1, 1),
+(1, 2, 1),
+(2, 3, 1),
+(3, 4, 2);
+
