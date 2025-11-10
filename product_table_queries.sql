@@ -156,5 +156,29 @@ UPDATE products SET supplier_id = CASE WHEN category = 'Electronics' THEN 1 WHEN
 
 UPDATE products SET supplier_id = CASE WHEN category = 'Office' THEN 5 END;
 
+--  Perform an INNER JOIN to show product with supplier name
 
+SELECT p.name AS product_name, p.category, p.price, s.supplier_name FROM products p JOIN suppliers S ON s.suppier_id = p.supplier_id;
+
+SELECT p.name AS product_name, p.category, p.price, p.mfg, s.supplier_name, s.contact_email FROM products p JOIN suppliers S ON s.suppier_id = p.supplier_id;
+
+
+-- LEFT JOIN to include suppliers even if they have no products
+
+
+SELECT s.supplier_name, p.name AS product_name FROM suppliers s LEFT JOIN products p ON s.suppier_id = p.supplier_id;
+
+-- RIGHT JOIN
+SELECT s.supplier_name, s.contact_email, p.name AS product_name FROM suppliers s RIGHT JOIN products p ON s.suppier_id = p.supplier_id;
+
+
+CREATE TABLE sales(sale_id SERIAL PRIMARY KEY, product_id INT REFERENCES products(id), quantity INT, sale_date DATE);
+
+SELECT * FROM sales;
+
+INSERT INTO sales (product_id, quantity, sale_date) VALUES (1, 3, '2023-06-10'),
+(2, 1, '2023-06-11'),
+(3, 5, '2023-06-11'),
+(4, 2, '2023-06-12'),
+(5, 4, '2023-06-13');
 
