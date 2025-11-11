@@ -182,3 +182,31 @@ INSERT INTO sales (product_id, quantity, sale_date) VALUES (1, 3, '2023-06-10'),
 (4, 2, '2023-06-12'),
 (5, 4, '2023-06-13');
 
+SELECT * FROM sales;
+
+SELECT * FROM products;
+
+-- Join products with sales to show total sales value
+
+SELECT p.name, p.price, p.category, s.quantity, (p.price * s.quantity) AS tot_sales_value FROM products p JOIN sales s ON p.id = s.product_id;
+
+-- Find total revenue per category
+
+SELECT p.category, SUM(p.price * s.quantity) AS tot_revenue FROM products p JOIN sales s ON p.id = s.product_id GROUP BY p.category; 
+
+-- Use a subquery to find products with sales above 5000
+
+SELECT name, price, category, id FROM products WHERE id IN (SELECT product_id FROM sales GROUP BY product_id HAVING SUM(price * quantity)>5000);
+
+-- Find top-selling product
+
+SELECT p.name, SUM(s.quantity) AS tot_quantity FROM products p JOIN sales s ON p.id = s.product_id GROUP BY p.name ORDER BY tot_quantity DESC LIMIT 1;
+
+-- Find least-selling product
+
+SELECT p.name, SUM(s.quantity) AS tot_quantity FROM products p JOIN sales s ON p.id = s.product_id GROUP BY p.name ORDER BY tot_quantity ASC LIMIT 1;
+
+-- Add constraint so price cannot be negative
+
+ALTER TABLE products ADD CONSTRAINT chk_price_positive CHECK(price >= 0);
+
