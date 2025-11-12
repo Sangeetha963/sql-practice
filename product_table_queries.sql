@@ -210,3 +210,105 @@ SELECT p.name, SUM(s.quantity) AS tot_quantity FROM products p JOIN sales s ON p
 
 ALTER TABLE products ADD CONSTRAINT chk_price_positive CHECK(price >= 0);
 
+-- Create a function to get discount price
+
+CREATE OR REPLACE FUNCTION get_discounted_price(original_price NUMERIC, discount_percent NUMERIC) RETURNS NUMERIC AS $$ BEGIN RETURN original_price - (original_price * discount_percent / 100); END; $$ LANGUAGE plpgsql;
+
+SELECT name, price, get_discounted_price(price, 15) AS discounted_price FROM products;
+
+-- Create a function to get calculate_gst
+
+CREATE OR REPLACE FUNCTION calculate_gst(original_price NUMERIC, gst_percent NUMERIC) RETURNS NUMERIC AS $$ BEGIN RETURN original_price + (original_price * gst_percent/100); END; $$ LANGUAGE plpgsql;
+
+SELECT name, category, mfg, price, calculate_gst(price, 15) AS calculated_price FROM products;
+
+-- Create a function to get_price_category
+
+CREATE OR REPLACE FUNCTION get_price_category(price NUMERIC) RETURNS TEXT AS $$ BEGIN 
+IF price >= 50000 THEN RETURN 'Expensive'; 
+ELSEIF price >= 5000 THEN RETURN 'Moderate';
+ELSE RETURN 'Budget';
+END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT name, category, mfg, price, get_price_category(price) AS price_category FROM products;
+
+-- Function to Calculate Total Stock Value
+
+CREATE OR REPLACE FUNCTION tot_stock_value(qty INT, price NUMERIC) RETURNs NUMERIC AS $$
+BEGIN RETURN qty * price;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT p.name, p.category, p.mfg, p.price, s.quantity, tot_stock_value(s.quantity, p.price) AS tot_stock FROM products p JOIN sales s ON p.id = s.product_id;
+
+
+--- Function to Format Product Information
+
+CREATE OR REPLACE FUNCTION format_product_information(p_name TEXT, p_price NUMERIC, p_category TEXT) RETURNS TEXT AS $$
+BEGIN RETURN 'Product:' || p_name || 'Price:' || p_price || 'Category:' || p_category;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT format_product_information(name, price, category) AS foramted_details FROM products;
+
+--- Function to Get Age of a Product (in Days)
+
+CREATE OR REPLACE FUNCTION get_age_of_product(mfg DATE) RETURNS INT AS $$
+BEGIN RETURN (CURRENT_DATE - mfg );
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT name, price, category, mfg, get_age_of_product(mfg) AS age_of_product FROM products;
+
+--- Function to Check if Product is Newly Launched
+
+CREATE OR REPLACE FUNCTION newly_launched(mfg DATE) RETURNS TEXT AS $$
+BEGIN 
+IF (CURRENT_DATE - mfg) <= 660 THEN RETURN 'New';
+ELSE RETURN 'Old';
+END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT name, price, category, mfg, newly_launched(mfg) AS newly_launched FROM products;
+
+--- Function to Calculate Taxed Price
+
+CREATE OR REPLACE FUNCTION get_taxed_price(price NUMERIC, tax_rate NUMERIC DEFAULT 18) RETURNS NUMERIC AS $$
+BEGIN
+RETURN price + (price * tax_rate / 100);
+END;
+$$ LANGUAGE plpgsql;
+
+
+SELECT name, category, price, get_taxed_price(price, 18) AS taxed_price FROM products;
+
+--- Function to Return Category-wise Message
+
+CREATE OR REPLACE FUNCTION get_category_wise_message(category TEXT) RETURNS TEXT AS $$
+BEGIN
+CASE category
+WHEN 'Electronics' THEN RETURN 'Handle with care - Fragile item';
+WHEN 'Home' THEN RETURN 'Handle with care - general item';
+WHEN 'Apparel' THEN RETURN 'Wash gently - Delicate fabric';
+WHEN 'Books' then return 'Keep away from moisture';
+ELSE RETURN 'General item';
+END CASE;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT name, price, category, get_category_wise_message(category) FROM products;
+
+--- Function to Convert Price to USD
+
+CREATE OR REPLACE FUNCTION convert_price_to_usd(price NUMERIC) RETURNS NUMERIC AS $$
+DECLARE usd_rate NUMERIC := 8.23;
+BEGIN
+RETURN ROUND(price / usd_rate, 2);
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT name, price, category, convert_price_to_usd(price) AS converted_value FROM products;
+
