@@ -312,3 +312,34 @@ $$ LANGUAGE plpgsql;
 
 SELECT name, price, category, convert_price_to_usd(price) AS converted_value FROM products;
 
+CREATE VIEW supplier_revenue AS SELECT s.supplier_name, SUM(p.price * sa.quantity) AS total_revenue FROM suppliers s JOIN products p ON p.id = s.suppier_id JOIN sales s ON sa.product_id = p.id GROUP BY s.supplier_name;
+
+SELECT * FROM supplier_revenue;
+
+SELECT supplier_name, total_revenue FROM supplier_revenue ORDER BY total_revenue DESC LIMIT 1;
+
+-- Add a trigger to automatically update price history
+
+CREATE TABLE price_history( history_id SERIAL PRIMARY KEY, product_id INT, old_price NUMERIC(10, 2), new_price NUMERIC(10, 2), changed_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
+SELECT * FROM price_history;
+
+CREATE OR REPLACE FUNCTION log_price_change() RETURNS TRIGGER AS $$
+BEGIN
+IF NEW.price <> OLD.price THEN INSERT INTO price_history(product_id, old_price, new_price) VALUES (old.id, OLD.price, NEW.price);
+END IF;
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_price_update AFTER UPDATE OF price ON products FOR EACH ROW EXECUTE FUNCTION log_price_change();
+
+-- Check price history log
+
+UPDATE products SET price = price * 1.05 WHERE id = 1;
+
+UPDATE products SET price = price * 1.06 WHERE id = 2;
+
+UPDATE products SET price = price * 1.07 WHERE id = 3;
+
+SELECT * FROM price_history;
