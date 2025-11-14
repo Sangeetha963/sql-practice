@@ -343,3 +343,97 @@ UPDATE products SET price = price * 1.06 WHERE id = 2;
 UPDATE products SET price = price * 1.07 WHERE id = 3;
 
 SELECT * FROM price_history;
+
+--- Log inserted products into an audit table
+
+CREATE TABLE product_audit(audit_id SERIAL PRIMARY KEY, product_id INT, name VARCHAR(100), price NUMERIC(10, 2), logged_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
+CREATE OR REPLACE FUNCTION log_new_product() RETURNS TRIGGER AS $$
+BEGIN 
+INSERT INTO product_audit(product_id, name, price)
+VALUES (NEW.id, NEW.name, NEW.price);
+
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_log_new_product
+AFTER INSERT ON products 
+FOR EACH ROW
+EXECUTE FUNCTION log_new_product();
+
+INSERT INTO products(name, category, price)
+VALUES('Test Product', 'Electronics', 999);
+
+SELECT * FROM product_audit;
+
+--- Prevent negative quantity in sales (BEFORE INSERT)
+
+CREATE OR REPLACE FUNCTION prevent_negative_quantity()
+RETURNS TRIGGER AS $$
+BEGIN 
+IF NEW.quantity < 0 THEN 
+RAISE EXCEPTION 'Quantity cannot be negative!';
+ END IF;
+ RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_prevent_negative_quantity
+BEFORE INSERT ON sales
+FOR EACH ROW
+EXECUTE FUNCTION prevent_negative_quantity();
+
+INSERT INTO sales (product_id, quantity, sale_date)
+VALUES (1, -7, '2024-01-01');
+
+SELECT * FROM sales;
+
+-- Automatically set sale_value in sales table
+
+ALTER TABLE sales ADD COLUMN sale_value NUMERIC(10, 2);
+
+CREATE OR REPLACE FUNCTION calculate_sale_value()
+RETURNS TRIGGER AS $$
+DECLARE product_price NUMERIC;
+BEGIN
+SELECT price INTO product_price FROM products WHERE id = NEW.product_id;
+
+NEW.sale_value = product_price * NEW. quantity;
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_sale_value()
+BEFORE INSERT ON sales
+FOR EACH ROW
+EXECUTE FUNCTION calculate_sale_value();
+
+INSERT INTO sales(product_id, quantity, sale_date)
+VALUES (2, 4, '2024-01-01');
+
+SELECT * FROM sales;
+
+-- Save deleted product details into a deleted_products
+
+CREATE TABLE deleted_products( del_id SERIAL PRIMARY KEY, product_id INT, name VARCHAR(100), price NUMERIC(10, 2), deleted_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
+CREATE OR REPLACE FUNCTION log_deleted_product()
+RETURNS TRIGGER AS $$
+BEGIN 
+INSERT INTO deleted_products(product_id, name, price)
+VALUES (OLD.id, OLD.name, OLD.price);
+
+RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_deleted_product
+AFTER DELETE ON products
+FOR EACH ROW
+EXECUTE FUNCTION log_deleted_product();
+
+DELETE FROM sales WHERE product_id = 3;
+DELETE FROM products WHERE id = 3;
+
+SELECT * FROM deleted_products;
