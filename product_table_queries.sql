@@ -437,3 +437,30 @@ DELETE FROM sales WHERE product_id = 3;
 DELETE FROM products WHERE id = 3;
 
 SELECT * FROM deleted_products;
+
+
+ALTER TABLE products ADD COLUMN qty INT DEFAULT 0;
+
+CREATE TABLE stock_history (log_id SERIAL PRIMARY KEY, product_id INT, old_qty INT, new_qty INT, changed_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
+CREATE OR REPLACE FUNCTION log_stock_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.qty <> OLD.qty THEN 
+    INSERT INTO stock_history(product_id, old_qty, new_qty)
+    VALUES (OLD.id, OLD.qty, NEW.qty);
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_stock_update
+AFTER UPDATE ON products
+FOR EACH ROW
+EXECUTE FUNCTION log_stock_update()
+
+UPDATE products SET qty = qty + 10 WHERE id = 19;
+
+SELECT * FROM stock_history;
+
