@@ -558,3 +558,25 @@ EXECUTE FUNCTION alert_low_stock();
 UPDATE products SET qty = 3 WHERE id = 20;
 
 SELECT * FROM low_stock_alerts;
+
+--- Find the second highest product price without using LIMIT
+
+SELECT * FROM products;
+
+SELECT MAX(price) FROM products WHERE price < (SELECT MAX(price) FROM products);
+
+--- Get products whose price is above the average price
+
+SELECT * FROM products WHERE price < (SELECT AVG(price) FROM products);
+
+--- Get duplicate product names (if any)
+
+SELECT name, COUNT(*) FROM products GROUP BY name HAVING COUNT(*) > 1;
+
+--- Rank products by price using RANK()
+
+SELECT id, name, price, RANK() OVER (ORDER BY price DESC) AS price_rank FROM products;
+
+--- Get top product per category using ROW_NUMBER()
+
+SELECT * FROM (SELECT id, name, price, category, ROW_NUMBER() OVER (PARTITION BY category ORDER BY price DESC) AS rn FROM products) x WHERE rn = 1;
