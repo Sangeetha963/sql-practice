@@ -580,3 +580,49 @@ SELECT id, name, price, RANK() OVER (ORDER BY price DESC) AS price_rank FROM pro
 --- Get top product per category using ROW_NUMBER()
 
 SELECT * FROM (SELECT id, name, price, category, ROW_NUMBER() OVER (PARTITION BY category ORDER BY price DESC) AS rn FROM products) x WHERE rn = 1;
+
+--- Recursive CTE to generate numbers from 1 to 100
+
+WITH RECURSIVE nums(n) AS (
+SELECT 1
+UNION ALL SELECT n + 1 FROM nums WHERE n < 100
+)
+SELECT * FROM nums;
+
+--- Function to execute any SQL passed as input
+
+CREATE OR REPLACE FUNCTION run_dynamic(q text) 
+RETURNS SETOF products AS $$
+BEGIN
+RETURN QUERY EXECUTE q;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT * FROM run_dynamic('SELECT * FROM products');
+AS t(id INT, name TEXT, price NUMERIC, category TEXT, qty INT);
+
+DROP FUNCTION IF EXISTS run_dynamic(text);
+
+--- Dynamic INSERT Into Any Table
+
+CREATE OR REPLACE FUNCTION dynamic_insert(tbl TEXT, cols TEXT, vals TEXT)
+RETURNS void AS $$
+BEGIN
+EXECUTE format('INSERT INTO %I (%s) VALUES (%s)', tbl, cols, vals);
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT dynamic_insert( 'products', 'name, price, category, qty',quote_literal('Dynamic Pen') || ', 15.50, ' || quote_literal('Office') || ', 100');
+
+SELECT * FROM products;
+
+CREATE OR REPLACE FUNCTION dyc_update(tbl TEXT, set_sql TEXT, cond TEXT)
+RETURNS void AS $$
+BEGIN 
+EXECUTE format('UPDATE %I SET %s WHERE %s', tbl, set_sql, cond);
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT dyc_update('products', 'price = price * 2.10', 'category = ''Books''');
+
+SELECT * FROM products WHERE category = 'Books';
