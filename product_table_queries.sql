@@ -464,3 +464,97 @@ UPDATE products SET qty = qty + 10 WHERE id = 19;
 
 SELECT * FROM stock_history;
 
+-- If someone tries to insert a negative price, automatically set it to 0.
+
+CREATE OR REPLACE FUNCTION validate_price_before_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+IF NEW.price < 0 THEN
+   NEW.price := 0;
+END IF;
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_validate_price_before_insert
+BEFORE INSERT ON products
+FOR EACH ROW
+EXECUTE FUNCTION validate_price_before_insert();
+
+INSERT INTO products(name, price,category, mfg)
+VALUES ('Skirt', -599, 'Apparel', '2025-01-22');
+
+SELECT * FROM products WHERE name = 'Skirt';
+
+-- Create a trigger to automatically reduce product stock when a sale is made
+
+CREATE OR REPLACE FUNCTION reduce_stock_on_sale()
+RETURNS TRIGGER AS $$
+BEGIN 
+UPDATE products
+SET qty = qty - NEW.quantity
+WHERE id = NEW.product_id;
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_reduce_stock_on_sale
+AFTER INSERT ON sales
+FOR EACH ROW
+EXECUTE FUNCTION reduce_stock_on_sale();
+
+INSERT INTO sales (product_id, quantity, sale_date, sale_value)
+VALUES (19, 1, CURRENT_DATE, '5800');
+
+SELECT * FROM products WHERE ID = 19;
+
+--- Create a function to calculate loyalty points
+
+CREATE OR REPLACE FUNCTION calc_points(amount NUMERIC)
+RETURNS NUMERIC AS $$
+BEGIN 
+RETURN(amount / 100) * 2;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT calc_points(500) AS loyal_points;
+
+--- Create a view showing total stock value (qty × price)
+
+CREATE VIEW products_stock_value AS SELECT id, name, price, qty, (qty * price) AS stock_value FROM products; 
+
+SELECT * FROM products_stock_value;
+
+--- Write a query to find products with ZERO stock
+
+SELECT * FROM products WHERE qty = 0;
+
+--- Write a query to find suppliers with NO product using left join
+
+SELECT s.supplier_name FROM suppliers s LEFT JOIN products p ON s.suppier_id = p.supplier_id WHERE p.id is NULL; 
+
+--- Create a trigger to log low stock alerts (< 5 qty)
+
+CREATE TABLE low_stock_alerts(alert_id SERIAL PRIMARY KEY, product_id INT, qty INT, alert_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
+SELECT * FROM low_stock_alerts;
+
+CREATE OR REPLACE FUNCTION alert_low_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+IF NEW.qty < 5 THEN
+INSERT INTO low_stock_alerts(product_id, qty)
+VALUES (NEW.product_id, NEW.qty);
+END IF;
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_low_stock_alerts
+AFTER INSERT ON products
+FOR EACH ROW
+EXECUTE FUNCTION alert_low_stock();
+
+UPDATE products SET qty = 3 WHERE id = 20;
+
+SELECT * FROM low_stock_alerts;
