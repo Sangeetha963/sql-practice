@@ -626,3 +626,23 @@ $$ LANGUAGE plpgsql;
 SELECT dyc_update('products', 'price = price * 2.10', 'category = ''Books''');
 
 SELECT * FROM products WHERE category = 'Books';
+--- ANALYTICS QUERIES (WINDOW + AGGREGATION)
+--- Month-wise sales revenue trend (with running total)
+
+SELECT date_trunc('month', sale_date) AS month, SUM(quantity * p.price) AS month_revenue, SUM(SUM(quantity * p.price)) OVER (ORDER BY date_trunc('month', sale_date)) AS cummulative_revenue
+FROM sales s JOIN products p ON p.id = s.product_id GROUP BY month;
+
+--- Daily sales difference compared to previous day (LAG)
+
+SELECT sale_date, SUM(quantity) AS qty_sold, LAG(SUM(quantity)) OVER (ORDER BY sale_date) AS prev_day_qty, SUM(quantity)-LAG(SUM(quantity)) OVER (ORDER BY sale_date) AS diff FROM sales GROUP BY sale_date;
+
+--- STOCK INTELLIGENCE QUERIES
+--- Find products that are selling fast but stock hasn't been updated recently
+
+SELECT p.id, p.name, p.qty, (SELECT SUM(quantity) FROM sales where product_id = p.id) AS total_sales, (SELECT MAX(changed_on) FROM stock_history WHERE product_id = p.id) AS last_stock_update FROM products p WHERE p.qty < 20 
+AND NOT EXISTS (SELECT 1 FROM stock_history sh  WHERE sh.product_id = p.id AND sh.changed_on > NOW() - INTERVAL '7 days');
+
+--- Detect stock mismatch between “active_inventory” and “products”
+
+SELECT p.id, p.name, p.qty AS product_qty, ai.stock AS inventory_qty FROM products p JOIN active_inventory ai ON ai.name = p.name WHERE p.qty <> ai.stock; 
+
