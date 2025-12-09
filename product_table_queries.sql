@@ -723,4 +723,16 @@ WITH RECURSIVE cat AS (SELECT id, category, 1 AS level FROM products UNION ALL S
 
 /* find the fasted selling product */
 
-SELECT id, name, (SELECT SUM(quantity) FROM sales WHERE product_id = p.id) / (CURRENT_DATE - mfg) AS sales_speed FROM products p;
+SELECT id, name, (SELECT SUM(quantity) FROM sales WHERE product_id = p.id) / (CURRENT_DATE - mfg) AS sales_speed FROM products p;/*check for price anomalies - products priced far above category avg*/
+
+WITH cat_avg AS (SELECT category, AVG(price) AS avg_price FROM products GROUP BY category) SELECT p.name, p.price, c.avg_price, (p.price - c.avg_price) AS differnec FROM products p JOIN cat_avg c ON p.category = c.category WHERE p.price > c.avg_price * 1.5;
+
+/*find days with no sales (calendr join)*/
+
+WITH RECURSIVE dates AS (SELECT MIN(sale_date)::timestamp AS dt FROM sales UNION ALL SELECT dt + INTERVAL '1 day'FROM dates WHERE dt + INTERVAL '1 day' <= (SELECT MAX(sale_date) FROM sales)) SELECT dt FROM dates d LEFT JOIN sales s ON s.sale_date = d.dt WHERE s.sale_date IS NULL;
+
+/* Create a materialized view for fast analytics*/
+
+CREATE MATERIALIZED VIEW product_sales_summary AS SELECT p.id, p.name, SUM(s.quantity) AS total_qty, SUM(s.quantity * p.price) AS total_revenue FROM products p LEFT JOIN sales s ON s.product_id = p.id GROUP BY p.id, p.name;
+
+REFRESH MATERIALIZED VIEW product_sales_summary;
