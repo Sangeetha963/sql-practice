@@ -646,3 +646,81 @@ AND NOT EXISTS (SELECT 1 FROM stock_history sh  WHERE sh.product_id = p.id AND s
 
 SELECT p.id, p.name, p.qty AS product_qty, ai.stock AS inventory_qty FROM products p JOIN active_inventory ai ON ai.name = p.name WHERE p.qty <> ai.stock; 
 
+SELECT
+    date_trunc('month', s.sale_date) AS month,
+    SUM(s.quantity * p.price) AS month_revenue,
+    SUM(SUM(s.quantity * p.price)) OVER (
+        ORDER BY date_trunc('month', s.sale_date)
+    ) AS running_total
+FROM sales s
+JOIN products p ON p.id = s.product_id
+GROUP BY date_trunc('month', s.sale_date)
+ORDER BY month;
+
+
+/* products whose monthly sales quantity increases every month */
+
+WITH monthly_sales AS ( SELECT product_id, date_trunc('month', sale_date) AS month, SUM(quantity) AS total_qty FROM sales GROUP BY product_id, date_trunc('month', sale_date)),
+trend AS (SELECT product_id, month, total_qty, LAG(total_qty) OVER (PARTITION BY product_id ORDER BY month) AS prev_qty FROM monthly_sales) 
+SELECT * FROM trend WHERE prev_qty IS NOT NULL AND total_qty > prev_qty;
+
+/* products that have never been sold */
+
+SELECT p.* FROM products p LEFT JOIN sales s ON s.product_id = p.id WHERE s.product_id IS NULL;
+
+SELECT id, name FROM products ORDER BY id;
+
+/* Insert December 2024 Sales*/
+INSERT INTO sales(product_id, quantity, sale_date) VALUES (1, 10, '2024-12-05'),(2, 5,  '2024-12-10'),(4, 7,  '2024-12-15');
+
+/* Insert january 2025 sales*/
+INSERT INTO sales(product_id, quantity, sale_date) VALUES (1, 20, '2025-01-05'),(2, 12, '2025-01-08'),(5, 3,  '2025-01-18');
+
+/* Insert februry 2025 sales*/
+INSERT INTO sales(product_id, quantity, sale_date) VALUES (1, 8, '2025-02-01'),(2, 15, '2025-02-12'),(4, 4, '2025-02-20');
+
+/* find 'consistent perfrmers' -> products that sold every month */
+
+WITH months AS (SELECT DISTINCT date_trunc('month', sale_date) AS month FROM sales WHERE sale_date >= '2024-12-01' AND sale_date <= '2025-02-28'), 
+sales_per_month AS (SELECT product_id, date_trunc('month', sale_date) AS month FROM sales WHERE sale_date >= '2024-12-01' AND sale_date <= '2025-02-28' GROUP BY product_id, date_trunc('month', sale_date))
+SELECT product_id FROM sales_per_month GROUP BY product_id HAVING COUNT(*) = (SELECT COUNT(*) FROM months);
+
+SELECT DISTINCT date_trunc('month', sale_date) AS month FROM sales ORDER BY month;
+
+/* find top 2 selling products per category using window functions */
+
+WITH total_sales AS (SELECT p.category, p.name, SUM(s.quantity) AS total_qty FROM products p JOIN sales s ON p.id= s.product_id GROUP BY p.category, p.name)
+SELECT * FROM (SELECT category, name, total_qty, ROW_NUMBER() OVER (PARTITION BY category ORDER  BY total_qty DESC) AS rn FROM total_sales) t WHERE rn <=2;
+
+/* rolling 3 - onth sales average(moving average)*/
+
+WITH ms AS (SELECT date_trunc('month', sale_date) AS month, SUM(quantity) AS qty FROM sales GROUP BY date_trunc('month', sale_date))
+SELECT month, qty, AVG(qty) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_avg_3_month FROM ms;
+
+/*Identity Price Increase Events(Compare with price history)*/
+
+SELECT product_id, old_price, new_price, (new_price - old_price) AS difference, changed_on FROM price_history WHERE new_price > old_price;
+
+/*Detect inventory mismatch between product.qty and active_inventory.stock*/
+
+SELECT p.id, p.name, p.qty AS product_qty, ai.stock AS inventory_stock FROM products p JOIN active_inventory ai ON ai.name = p.name WHERE p.qty <> ai.stock;
+
+/*get total revenue per supplier*/
+
+SELECT s.supplier_name, SUM(p.price * sa.quantity) AS revenue FROM suppliers s JOIN products p ON p.supplier_id = s.supplier_id JOIN sales sa ON sa.product_id = p.id GROUP BY s.supplier_name ORDER BY revenue DESC;
+
+/*Find out of stock products (qty = 0) + last time they sold*/
+
+SELECT p.name, p.category, p.qty, MAX(s.sale_date) AS last_sold_date FROM products p LEFT JOIN sales s ON p.id = s.product_id WHERE qty = 0 GROUP BY p.name, p.category, p.qty;
+
+/*detect products deleted after they had sales*/
+
+SELECT dp.product_id, dp.name, dp.price, (SELECT COUNT(*) FROM sales WHERE product_id = dp.product_id) AS total_sales FROM deleted_products dp; 
+
+/*recursive category report (hierarcy simulation)*/
+
+WITH RECURSIVE cat AS (SELECT id, category, 1 AS level FROM products UNION ALL SELECT p.id, p.category, c.level + 1 FROM products p JOIN cat c ON p.category = c.category WHERE c.level < 3) SELECT * FROM cat;
+
+/* find the fasted selling product */
+
+SELECT id, name, (SELECT SUM(quantity) FROM sales WHERE product_id = p.id) / (CURRENT_DATE - mfg) AS sales_speed FROM products p;
