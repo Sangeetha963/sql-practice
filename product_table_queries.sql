@@ -777,3 +777,35 @@ SUM(CASE WHEN month = '2025-01' THEN qty END) AS jan,
 SUM(CASE WHEN month = '2025-02' THEN qty END) AS feb,
 SUM(CASE WHEN month = '2025-03' THEN qty END) AS march
 FROM sales_monthly GROUP BY product_id)SELECT * FROM pivoted;
+
+/* convert full product recorrd to json*/
+
+SELECT id, to_json(products.*) AS product_json FROM products;
+
+/* json aggregation - products grouped by category*/
+
+SELECT category, json_agg(json_build_object('id', id, 'name', name, 'price', price)) AS product_list FROM products GROUP BY category;
+
+/* full text search - find products with 'books' or similar words */
+
+SELECT * FROM products WHERE to_tsvector(name) @@ to_tsquery('books:*');
+
+/* index optimization - find missing indexs */
+
+SELECT relname, seq_scan, idx_scan FROM pg_stat_user_tables ORDER BY seq_scan DESC;
+
+/* Locking & Concurrency - see current locks */
+
+SELECT pid, locktype, mode, granted, relation::regclass FROM pg_locks WHERE NOT granted;
+
+
+/* Trigger on multiple tables - aduit sales + products */
+
+CREATE OR REPLACE FUNCTION audit_product_and_sales()
+RETURNS TRIGGER AS $$
+BEGIN
+INSERT INTO product_audit(product_id, action, event_name)
+VALUES (NEW.product_id, TG_OP, NOW());
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
