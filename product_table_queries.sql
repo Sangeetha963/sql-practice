@@ -736,3 +736,44 @@ WITH RECURSIVE dates AS (SELECT MIN(sale_date)::timestamp AS dt FROM sales UNION
 CREATE MATERIALIZED VIEW product_sales_summary AS SELECT p.id, p.name, SUM(s.quantity) AS total_qty, SUM(s.quantity * p.price) AS total_revenue FROM products p LEFT JOIN sales s ON s.product_id = p.id GROUP BY p.id, p.name;
 
 REFRESH MATERIALIZED VIEW product_sales_summary;
+
+/* calculate cumulative sales by month using Range window frame*/
+
+SELECT product_id, date_trunc('month', sale_date) AS month, SUM(quantity) AS monthly_qty, SUM(SUM(quantity)) OVER (PARTITION BY product_id ORDER BY date_trunc('month', sale_date) RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total FROM sales GROUP BY product_id, month ORDER BY product_id, month;
+
+
+/* window function with GROUPS*/
+/* Rank only when the price price gap is >= 50 using GROUPS frame*/
+
+SELECT id, name, price, RANK() OVER(ORDER BY price DESC GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS group_rank FROM products;
+
+/*LATERAL JOIN */
+/* get each product + its latest pice from price_history*/
+
+SELECT p.id, p.name, ph.latest_price FROM products p CROSS JOIN LATERAL (SELECT price as latest_price FROM price_history WHERE product_id = p.id ORDER BY changed_on DESC LIMIT 1)ph;
+
+/*Lateral Join with filtering*/
+/*get the highest sale quantity per product*/
+
+SELECT p.id, p.name, s.max_qty FROM products p LEFT JOIN LATERAL (SELECT quantity AS max_qty FROM sales WHERE product_id = p.id ORDER BY quantity DESC LIMIT 1) s ON true;
+
+/* PIVOT (using FILTER) - Convert rows -> columns*/
+/* show sales for each month in columns */
+
+SELECT product_id, 
+SUM(quantity) FILTER (WHERE date_part('month', sale_date) = 12) AS dec_sales, 
+SUM(quantity) FILTER (WHERE date_part('month', sale_date) = 1) AS jan_sales,
+SUM(quantity) FILTER (WHERE date_part('month', sale_date) = 2) AS fab_sales FROM sales GROUP BY product_id;
+
+/* UNPIVOT -> convert column -> rows */
+/* manual unpivot using UNION ALL */
+
+WITH sales_monthly AS (SELECT product_id, to_char(sale_date, 'YYYY-MM') AS month, SUM(quantity) AS qty FROM sales GROUP BY product_id, to_char(sale_date, 'YYYY-MM')),
+pivoted AS (SELECT product_id, 
+SUM(CASE WHEN month = '2024-10' THEN qty END) AS oct,
+SUM(CASE WHEN month = '2024-11' THEN qty END) AS nov,
+SUM(CASE WHEN month = '2024-12' THEN qty END) AS dec,
+SUM(CASE WHEN month = '2025-01' THEN qty END) AS jan,
+SUM(CASE WHEN month = '2025-02' THEN qty END) AS feb,
+SUM(CASE WHEN month = '2025-03' THEN qty END) AS march
+FROM sales_monthly GROUP BY product_id)SELECT * FROM pivoted;
