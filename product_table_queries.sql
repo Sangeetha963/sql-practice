@@ -809,3 +809,78 @@ VALUES (NEW.product_id, TG_OP, NOW());
 RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+/* recursive hierarcyhy tree*/
+
+SELECT json_agg(node ORDER BY depth, node_id) AS result
+FROM (
+    -- PRODUCTS
+    SELECT 
+        p.id AS node_id,
+        1 AS depth,
+        json_build_object(
+            'node_id', p.id,
+            'node_label', p.name,
+            'depth', 1,
+            'node_type', 'PRODUCT'
+        ) AS node
+    FROM products p
+
+    UNION ALL
+
+    -- PRICE HISTORY
+    SELECT 
+        ph.id AS node_id,
+        2 AS depth,
+        json_build_object(
+            'node_id', ph.id,
+            'node_label', 'Price change: ' || ph.old_price || '→' || ph.new_price,
+            'depth', 2,
+            'node_type', 'PRICE_HISTORY'
+        ) AS node
+    FROM price_history ph
+
+    UNION ALL
+
+    -- SALES HISTORY
+    SELECT 
+        s.sale_id AS node_id,
+        2 AS depth,
+        json_build_object(
+            'node_id', s.sale_id,
+            'node_label', 'Sale: Qty ' || s.quantity || ' on ' || s.sale_date,
+            'depth', 2,
+            'node_type', 'SALE'
+        ) AS node
+    FROM sales s
+
+    UNION ALL
+
+    -- STOCK HISTORY
+    SELECT 
+        sh.log_id AS node_id,
+        2 AS depth,
+        json_build_object(
+            'node_id', sh.log_id,
+            'node_label', 'Stock moved: ' || sh.old_qty || '→' || sh.new_qty,
+            'depth', 2,
+            'node_type', 'STOCK_HISTORY'
+        ) AS node
+    FROM stock_history sh
+) AS combined;
+
+
+/* materialized view and auto refresh */
+
+CREATE MATERIALIZED VIEW monthly_revenue_mv AS SELECT date_trunc('month', sale_date) AS month, SUM(quantity) AS total_qty FROM sales GROUP BY 1;
+
+CREATE UNIQUE INDEX CONCURRENTLY idx_monthly_revenue_mv_month ON monthly_revenue_mv (month);
+
+REFRESH MATERIALIZED VIEW CONCURRENTLY monthly_revenue_mv;
+
+SELECT * FROM monthly_revenue_mv ORDER by month;
+SELECT * FROM monthly_revenue_mv LIMIT 5;
+
+CREATE TABLE sales_part(sale_id SERIAL, product_id INT REFERENCES products(id), quantity INT NOT NULL, sale_date DATE NOT NULL, PRIMARY KEY (sale_id, sale_date)) PARTITION BY RANGE (sale_date);
+CREATE TABLE sales_2024_12 PARTITION OF sales_part FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+SELECT * FROM sales_part WHERE sale_date = '2025-01-15';
